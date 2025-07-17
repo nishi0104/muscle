@@ -1,0 +1,24 @@
+
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Message App</title>
+</head>
+
+<body>
+  <h1>
+    登録されている全てのレコード
+  </h1>
+  <p>
+    <a href="./">Topに戻る</a>
+  </p>
+  <%for (let i=0; i < messages.length; i++) {%>
+    <p>
+      <%= messages[i] %>
+    </p>
+    <%}%>
+</body>
+
+</html>

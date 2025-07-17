@@ -1,0 +1,20 @@
+{
+  "name": "training-bot-app",
+  "version": "1.0.0",
+  "description": "Hubot + Express + Sequelize + PostgreSQL",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "hubot": "^3.0.0",
+    "hubot-direct": "^1.0.0",
+    "express": "^4.18.3",
+    "ejs": "^3.1.10",
+    "sequelize": "^6.37.7",
+    "pg": "^8.13.3"
+  },
+  "engines": {
+    "node": "20.x"
+  }
+}

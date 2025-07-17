@@ -1,0 +1,26 @@
+
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Message App</title>
+</head>
+
+<body>
+  <h1>
+    データベースに文字列を格納する
+  </h1>
+  <p>
+    <a href="./">Topに戻る</a>
+  </p>
+  <form action="./add" method="post">
+    <textarea id="inputMessage" name="text" rows="4" cols="50">メモを入力してください</textarea>
+    <button id="submit" type="submit" name="submitButton">登録</button>
+  </form>
+  <p>
+    最後に登録された文字列: <%= lastMessage %>
+  </p>
+</body>
+
+</html>
