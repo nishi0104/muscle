@@ -45,14 +45,14 @@ def ken_burns(image: Path, out: Path, duration: float) -> None:
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", str(out)])
 
 
-def generate_fal(image: Path, prompt: str, out: Path) -> None:
+def generate_fal(image: Path, prompt: str, motion: str, out: Path) -> None:
     import fal_client
     import requests
 
     require_env("FAL_KEY")
     model = env("FAL_VIDEO_MODEL", "fal-ai/kling-video/v1/standard/image-to-video")
     arguments = {
-        "prompt": f"{prompt}. {MOTION_SUFFIX}",
+        "prompt": f"{prompt}. {motion}",
         "image_url": fal_client.upload_file(str(image)),
         "duration": env("FAL_VIDEO_DURATION", "5"),
     }
@@ -80,6 +80,7 @@ def main() -> None:
     args = p.parse_args()
 
     scenario = load_scenario(args.run)
+    motion = scenario.get("motion") or MOTION_SUFFIX
     rd = run_dir(args.run)
     out_dir = rd / "clips"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -94,7 +95,7 @@ def main() -> None:
             ken_burns(image, out, float(scene["duration"]))
             return "fallback: slideshow"
         try:
-            generate_fal(image, scene["image_prompt"], out)
+            generate_fal(image, scene.get("motion_prompt") or scene["image_prompt"], motion, out)
             return None
         except Exception as e:  # noqa: BLE001 - ポリシー違反・モデル未公開なども含め代替する
             log(f"  scene {sid} API 失敗 → スライドショーで代替: {e}")

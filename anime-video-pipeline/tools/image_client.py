@@ -27,7 +27,7 @@ def prompt_variants(scene: dict, style: str) -> list[str]:
     return [
         f"{full}. {style}",
         f"{first}. {style}",  # 簡略化
-        f"{scene.get('title_en') or first[:80]}, simple scene. Japanese anime style, vertical 9:16, no text",
+        f"{scene.get('title_en') or first[:80]}, simple scene. {style.split(',')[0]}, vertical 9:16, no text",
     ]
 
 

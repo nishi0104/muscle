@@ -44,6 +44,13 @@ python tools/pipeline.py --run <run_id> [--upload]
 python tools/state.py show <run_id>
 ```
 
+## サンプル: 鹿の一人称で歩く森（実写風）
+```bash
+python tools/pipeline.py --run deer-forest --scenario examples/deer-forest/scenario.json
+# → runs/deer-forest/output/final.mp4
+```
+シナリオの `style` / `motion` を変えると画風（アニメ⇔実写）や動きを切り替えられます。
+
 ## トラブルシュート
 - モデル廃止・名称変更 → `.env` のモデル ID を変更（コード修正不要）
 - 動画 API が正方形出力 → 自動でぼかし背景付き 1080x1920 に変換

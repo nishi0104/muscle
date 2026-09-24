@@ -1,0 +1,113 @@
+{
+  "title": "鹿の目線で歩く森の朝",
+  "source": "",
+  "style": "Photorealistic nature documentary footage, shot on cinema camera, natural lighting, shallow depth of field, lush Japanese deciduous forest, first-person point of view from a sika deer's eye level about 1 meter above the ground, the tip of the deer's brown furry snout occasionally visible at the bottom edge of the frame, vertical 9:16 composition, highly detailed fur and foliage, no text, no watermark, no humans",
+  "motion": "first-person POV camera slowly walking forward with gentle natural head bob of a deer, realistic animal movement, smooth handheld documentary feel, photorealistic",
+  "youtube": {
+    "title": "鹿の目線で歩く、森の朝",
+    "description": "もしも鹿になって森を歩いたら。リス、ウサギ、キツネ、フクロウ、イノシシ…森の仲間たちに出会う一人称ショート。\n#鹿 #森 #動物 #一人称視点 #AI動画",
+    "tags": ["鹿", "森", "動物", "一人称視点", "POV", "自然", "AI動画", "Shorts"]
+  },
+  "scenes": [
+    {
+      "id": 1,
+      "title": "夜明けの森",
+      "title_en": "misty forest trail at dawn",
+      "image_prompt": "First-person POV walking along a narrow misty forest trail at dawn, golden sunbeams streaming through tall cedar and beech trees, dew on ferns, soft fog.",
+      "motion_prompt": "The deer steps slowly forward along the misty trail, sunbeams shift through the trees, fog drifts.",
+      "narration": "朝だ。森が目を覚ます。今日も、僕は歩き出す。",
+      "subtitle": "朝だ。今日も、僕は歩き出す",
+      "duration": 5
+    },
+    {
+      "id": 2,
+      "title": "小川で水を飲む",
+      "title_en": "drinking from a clear stream",
+      "image_prompt": "First-person POV looking down at a crystal-clear forest stream, the deer's brown muzzle touching the water surface creating ripples, smooth pebbles and a small trout visible underwater, mossy rocks.",
+      "motion_prompt": "The deer lowers its muzzle and drinks, ripples spread across the water, a small fish darts away.",
+      "narration": "喉が渇いた。冷たい小川の水は、朝いちばんのごちそうだ。",
+      "subtitle": "冷たい小川の水は、朝のごちそう",
+      "duration": 6
+    },
+    {
+      "id": 3,
+      "title": "リスとの出会い",
+      "title_en": "squirrel on a branch",
+      "image_prompt": "First-person POV looking up at a red squirrel sitting on a mossy oak branch holding an acorn, staring curiously at the viewer, soft morning backlight.",
+      "motion_prompt": "The squirrel nibbles the acorn, twitches its tail and tilts its head at the camera.",
+      "narration": "木の上から、リスが僕を見ている。おはよう、と耳を動かす。",
+      "subtitle": "リスが僕を見ている。おはよう",
+      "duration": 5.5
+    },
+    {
+      "id": 4,
+      "title": "草むらのウサギ",
+      "title_en": "hare jumping in the grass",
+      "image_prompt": "First-person POV at low angle in tall green grass and wildflowers, a wild brown hare leaping away through the grass, morning light, motion.",
+      "motion_prompt": "The hare hops quickly away through the grass, blades of grass sway.",
+      "narration": "足元の草むらで、ウサギが跳ねた。驚かせてごめんよ。",
+      "subtitle": "驚かせてごめんよ、ウサギくん",
+      "duration": 5.5
+    },
+    {
+      "id": 5,
+      "title": "茂みの向こうのキツネ",
+      "title_en": "red fox behind the bushes",
+      "image_prompt": "First-person POV through leafy bushes, a red fox standing a few meters away on the forest floor looking back at the viewer calmly, dappled sunlight.",
+      "motion_prompt": "The fox watches for a moment, then turns and trots slowly into the undergrowth.",
+      "narration": "茂みの向こうに、キツネがいた。お互い、少しだけ距離をとる。",
+      "subtitle": "キツネと、少しだけ距離をとる",
+      "duration": 6
+    },
+    {
+      "id": 6,
+      "title": "昼寝中のフクロウ",
+      "title_en": "owl dozing in a tree hollow",
+      "image_prompt": "First-person POV looking up at an old tree trunk with a hollow, a Ural owl dozing inside with half-closed eyes, textured bark, quiet green forest.",
+      "motion_prompt": "The owl slowly blinks and ruffles its feathers, the deer walks quietly past.",
+      "narration": "木のうろでは、フクロウが昼寝中。静かに通り過ぎよう。",
+      "subtitle": "フクロウは昼寝中。しーっ",
+      "duration": 5.5
+    },
+    {
+      "id": 7,
+      "title": "イノシシの親子",
+      "title_en": "wild boar family in the mud",
+      "image_prompt": "First-person POV at a muddy clearing, a mother wild boar with several striped piglets rooting in the soil, sunlight through the canopy, lively and peaceful.",
+      "motion_prompt": "The striped piglets scurry around their mother, sniffing the ground playfully.",
+      "narration": "ぬかるみでは、イノシシの親子が泥あそび。にぎやかだ。",
+      "subtitle": "イノシシの親子が泥あそび",
+      "duration": 5.5
+    },
+    {
+      "id": 8,
+      "title": "遠くのクマ",
+      "title_en": "distant bear across the valley",
+      "image_prompt": "First-person POV from the edge of a forest overlooking a small valley, a black bear walking calmly far away on the opposite slope, wind moving the leaves, tense quiet atmosphere.",
+      "motion_prompt": "The deer lifts its head and slowly turns away, leaves rustle in the wind, the distant bear keeps walking.",
+      "narration": "ふと、風のにおいが変わった。遠くにクマ。そっと道を変える。",
+      "subtitle": "遠くにクマ。そっと道を変える",
+      "duration": 6
+    },
+    {
+      "id": 9,
+      "title": "陽だまりの草原",
+      "title_en": "sunny meadow with birds",
+      "image_prompt": "First-person POV stepping out of the dark forest into a bright sunlit meadow, small songbirds flying over golden grass, blue sky, wide open space.",
+      "motion_prompt": "The deer walks out into the bright meadow, songbirds take off and fly across the sky.",
+      "narration": "森を抜けると、陽だまりの草原。鳥たちが歌っている。",
+      "subtitle": "森を抜けると、陽だまりの草原",
+      "duration": 5
+    },
+    {
+      "id": 10,
+      "title": "仲間のもとへ",
+      "title_en": "reunited with the deer herd",
+      "image_prompt": "First-person POV approaching a small herd of sika deer grazing in a meadow at golden hour, a young fawn looking up at the viewer, warm sunset light.",
+      "motion_prompt": "The fawn raises its head and walks toward the camera, the herd grazes peacefully in the warm light.",
+      "narration": "仲間たちが待っていた。今日も、この森で生きていく。",
+      "subtitle": "今日も、この森で生きていく",
+      "duration": 5
+    }
+  ]
+}
