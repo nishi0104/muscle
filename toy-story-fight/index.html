@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>トイストーリーファイト</title>
+<style>
+  :root { --bg:#1b1030; --fg:#fff; --pink:#d9468f; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif; overflow:hidden; touch-action:none; }
+  #wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:8px 16px; gap:8px; }
+  canvas { width:100%; max-width:960px; aspect-ratio:16/9; background:#000; border-radius:8px; image-rendering:auto; }
+  #help { font-size:13px; opacity:.8; text-align:center; }
+  #pad { display:none; width:100%; max-width:960px; justify-content:space-between; user-select:none; -webkit-user-select:none; }
+  #pad .grp { display:flex; gap:8px; flex-wrap:wrap; }
+  #pad button { width:56px; height:56px; border-radius:50%; border:2px solid #fff6; background:#fff2; color:#fff; font-size:16px; font-weight:bold; }
+  #pad button.act { background:var(--pink); }
+  @media (pointer:coarse) { #pad { display:flex; } #help { display:none; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="help">移動: A / D　ジャンプ: W　ガード: S　パンチ: J　キック: K　必殺技(ゲージMAX): L　開始/次へ: Enter</div>
+  <div id="pad">
+    <div class="grp">
+      <button data-k="left">◀</button><button data-k="up">▲</button><button data-k="down">▼</button><button data-k="right">▶</button>
+    </div>
+    <div class="grp">
+      <button class="act" data-k="punch">P</button><button class="act" data-k="kick">K</button><button class="act" data-k="special">SP</button><button data-k="start">▶︎</button>
+    </div>
+  </div>
+</div>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = 960, H = 540, GROUND = 450, GRAV = 0.9;
+
+// ---- 入力 ----
+const keys = {}, pressed = {};
+const keymap = { a:'left', d:'right', w:'up', s:'down', j:'punch', k:'kick', l:'special', enter:'start', ' ':'start',
+  arrowleft:'left', arrowright:'right', arrowup:'up', arrowdown:'down' };
+addEventListener('keydown', e => { const k = keymap[e.key.toLowerCase()]; if (!k) return; e.preventDefault(); if (!keys[k]) pressed[k] = true; keys[k] = true; });
+addEventListener('keyup', e => { const k = keymap[e.key.toLowerCase()]; if (k) keys[k] = false; });
+document.querySelectorAll('#pad button').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); if (!keys[k]) pressed[k] = true; keys[k] = true; });
+  ['pointerup','pointerleave','pointercancel'].forEach(t => b.addEventListener(t, () => keys[k] = false));
+});
+
+// ---- 敵キャラ定義 ----
+const ENEMIES = [
+  { name:'ブリキロボ', color:'#8a9bb0', accent:'#e04040', speed:3.2, power:1.0, aggro:0.5, hp:100, draw:'robot', special:'ビーム' },
+  { name:'ゼンマイザウルス', color:'#4caf50', accent:'#ffcc00', speed:3.8, power:1.15, aggro:0.65, hp:110, draw:'dino', special:'ファイアブレス' },
+  { name:'ダーク・ジャック', color:'#3a2a5a', accent:'#ff3b7a', speed:4.4, power:1.3, aggro:0.8, hp:120, draw:'clown', special:'びっくり箱' },
+];
+
+// ---- ファイター ----
+class Fighter {
+  constructor(x, facing, isPlayer, def) {
+    Object.assign(this, { x, y:GROUND, vx:0, vy:0, facing, isPlayer, def,
+      hp:def.hp, maxHp:def.hp, meter:0, state:'idle', t:0, atk:null, hitstun:0, guard:false, flash:0, ai:{ t:0, act:null } });
+  }
+  get onGround() { return this.y >= GROUND; }
+  box() { return { x:this.x-40, y:this.y-150, w:80, h:150 }; }
+  startAttack(kind) {
+    const A = {
+      punch:  { dur:18, active:[5,9],  range:75, h:[-120,-80], dmg:6,  kb:5,  meter:8 },
+      kick:   { dur:26, active:[9,14], range:95, h:[-70,-20],  dmg:10, kb:9,  meter:12 },
+      special:{ dur:40, active:[12,13],range:0,  h:[0,0],      dmg:0,  kb:0,  meter:0, proj:true },
+    }[kind];
+    this.atk = { kind, ...A, t:0, hit:false };
+    this.state = kind;
+    if (kind === 'special') this.meter = 0;
+  }
+  update(input, foe, game) {
+    this.t++;
+    if (this.flash > 0) this.flash--;
+    this.facing = foe.x > this.x ? 1 : -1;
+    if (this.hitstun > 0) { this.hitstun--; this.state = 'hurt'; }
+    else if (this.state === 'ko' || this.state === 'win') {}
+    else if (this.atk) {
+      const a = this.atk; a.t++;
+      if (a.proj && a.t === a.active[0]) game.spawnProj(this);
+      if (!a.proj && !a.hit && a.t >= a.active[0] && a.t <= a.active[1]) {
+        const hx = this.x + this.facing * a.range, fb = foe.box();
+        const top = this.y + a.h[0], bot = this.y + a.h[1];
+        if (Math.abs(hx - foe.x) < 55 && bot > fb.y && top < fb.y + fb.h) {
+          a.hit = true;
+          game.hit(this, foe, a.dmg * (this.def.power||1), a.kb, a.meter);
+        }
+      }
+      if (a.t >= a.dur) { this.atk = null; this.state = 'idle'; }
+      if (this.onGround) this.vx *= 0.7;
+    } else {
+      this.guard = input.down && this.onGround;
+      const sp = this.def.speed;
+      if (this.guard) { this.vx = 0; this.state = 'guard'; }
+      else {
+        this.vx = (input.right ? sp : 0) - (input.left ? sp : 0);
+        if (input.up && this.onGround) { this.vy = -17; }
+        this.state = !this.onGround ? 'jump' : (this.vx ? 'walk' : 'idle');
+        if (input.punch) this.startAttack('punch');
+        else if (input.kick) this.startAttack('kick');
+        else if (input.special && this.meter >= 100) this.startAttack('special');
+      }
+    }
+    this.vy += GRAV; this.x += this.vx; this.y += this.vy;
+    if (this.y > GROUND) { this.y = GROUND; this.vy = 0; }
+    this.x = Math.max(50, Math.min(W - 50, this.x));
+    // 押し合い
+    const d = foe.x - this.x;
+    if (Math.abs(d) < 70 && Math.abs(foe.y - this.y) < 100) { const push = (70 - Math.abs(d)) / 2 * Math.sign(d || 1); this.x -= push; }
+  }
+}
+
+// ---- CPU思考 ----
+function cpuInput(me, foe) {
+  const inp = {}; const ai = me.ai; const dist = Math.abs(foe.x - me.x); const ag = me.def.aggro;
+  if (--ai.t <= 0) {
+    ai.t = 10 + Math.random() * 20;
+    const r = Math.random();
+    if (foe.atk && dist < 130 && r < ag * 0.6) ai.act = 'guard';
+    else if (me.meter >= 100 && r < 0.4) ai.act = 'special';
+    else if (dist > 110) ai.act = r < ag ? 'approach' : (r < ag + 0.15 ? 'jump' : 'wait');
+    else ai.act = r < ag * 0.55 ? 'punch' : r < ag ? 'kick' : r < ag + 0.15 ? 'back' : 'guard';
+  }
+  const toward = foe.x > me.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right';
+  switch (ai.act) {
+    case 'approach': inp[toward] = true; break;
+    case 'back': inp[away] = true; break;
+    case 'jump': inp.up = true; inp[toward] = true; ai.act = 'approach'; break;
+    case 'guard': inp.down = true; break;
+    case 'punch': case 'kick': case 'special': inp[ai.act] = true; ai.act = 'wait'; break;
+  }
+  return inp;
+}
+
+// ---- ゲーム ----
+const game = {
+  scene:'title', stage:0, round:1, wins:[0,0], timer:99, frame:0, projs:[], fx:[], shake:0, msg:'', msgT:0,
+  start(stage) {
+    this.stage = stage; this.round = 1; this.wins = [0,0]; this.newRound();
+  },
+  newRound() {
+    this.p = new Fighter(260, 1, true, { name:'ロッツォ', hp:100, speed:4, power:1 });
+    this.e = new Fighter(700, -1, false, ENEMIES[this.stage]);
+    this.projs = []; this.fx = []; this.timer = 99; this.frame = 0;
+    this.scene = 'intro'; this.msg = `ROUND ${this.round}`; this.msgT = 90;
+  },
+  hit(att, def, dmg, kb, meter) {
+    if (def.guard && Math.sign(att.x - def.x) === def.facing) {
+      dmg *= 0.15; kb *= 0.5; def.meter = Math.min(100, def.meter + 3);
+      this.fx.push({ x:def.x - def.facing*-30, y:def.y-100, t:12, c:'#8cf', txt:'GUARD' });
+    } else {
+      def.hitstun = 16; def.atk = null; def.flash = 8; this.shake = 6;
+      this.fx.push({ x:def.x, y:def.y-100, t:14, c:'#ff0', txt:dmg >= 10 ? 'BAM!' : 'POW!' });
+    }
+    def.hp = Math.max(0, def.hp - dmg);
+    def.vx = kb * att.facing;
+    att.meter = Math.min(100, att.meter + meter);
+    if (def.hp <= 0) this.endRound(att);
+  },
+  spawnProj(f) {
+    this.projs.push({ x:f.x + f.facing*60, y:f.y-90, vx:f.facing*9, owner:f, t:0 });
+  },
+  endRound(winner) {
+    if (this.scene !== 'fight') return;
+    const loser = winner === this.p ? this.e : this.p;
+    loser.state = 'ko'; loser.hitstun = 0; loser.vy = -10; loser.vx = -loser.facing*6;
+    winner.state = 'win'; winner.atk = null;
+    this.wins[winner === this.p ? 0 : 1]++;
+    this.scene = 'ko'; this.msg = 'K.O.!'; this.msgT = 150;
+  },
+  timeUp() {
+    const w = this.p.hp / this.p.maxHp >= this.e.hp / this.e.maxHp ? this.p : this.e;
+    this.endRound(w); this.msg = 'TIME UP';
+  },
+  update() {
+    if (this.scene === 'title') {
+      if (pressed.start || pressed.punch) this.start(0);
+      return;
+    }
+    if (this.scene === 'gameover' || this.scene === 'clear') {
+      if (pressed.start || pressed.punch) this.scene = 'title';
+      return;
+    }
+    if (this.scene === 'stageclear') {
+      if (pressed.start || pressed.punch) this.start(this.stage + 1);
+      return;
+    }
+    this.frame++;
+    if (this.msgT > 0) this.msgT--;
+    if (this.scene === 'intro') { if (this.msgT === 0) { this.scene = 'fight'; this.msg = 'FIGHT!'; this.msgT = 40; } return; }
+    const pin = this.scene === 'fight' ? { ...keys, punch:pressed.punch, kick:pressed.kick, special:pressed.special, up:keys.up } : {};
+    const ein = this.scene === 'fight' ? cpuInput(this.e, this.p) : {};
+    this.p.update(pin, this.e, this);
+    this.e.update(ein, this.p, this);
+    // 飛び道具
+    for (const pr of this.projs) {
+      pr.x += pr.vx; pr.t++;
+      const tgt = pr.owner === this.p ? this.e : this.p;
+      if (!pr.dead && Math.abs(pr.x - tgt.x) < 50 && tgt.y - 150 < pr.y && tgt.y > pr.y - 20 && tgt.state !== 'ko') {
+        pr.dead = true; this.hit(pr.owner, tgt, 22 * (pr.owner.def.power||1), 12, 0); this.shake = 12;
+      }
+      if (pr.x < -50 || pr.x > W + 50) pr.dead = true;
+    }
+    this.projs = this.projs.filter(p => !p.dead);
+    this.fx.forEach(f => { f.t--; f.y -= 1; }); this.fx = this.fx.filter(f => f.t > 0);
+    if (this.shake > 0) this.shake--;
+    if (this.scene === 'fight' && this.frame % 60 === 0 && --this.timer <= 0) this.timeUp();
+    if (this.scene === 'ko' && this.msgT === 0) {
+      if (this.wins[0] >= 2) this.scene = this.stage >= ENEMIES.length - 1 ? 'clear' : 'stageclear';
+      else if (this.wins[1] >= 2) this.scene = 'gameover';
+      else { this.round++; this.newRound(); }
+    }
+  },
+};
+
+// ---- 描画 ----
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function fur(x, y, r, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); }
+
+function drawLotso(f) {
+  const bob = f.state === 'walk' ? Math.sin(f.t * 0.4) * 4 : f.state === 'idle' ? Math.sin(f.t * 0.08) * 2 : 0;
+  const pink = f.flash % 2 ? '#fff' : '#c2447e', dark = '#8e2a5c', beige = '#e8d3a8', nose = '#5e1740';
+  ctx.save(); ctx.translate(f.x, f.y); ctx.scale(f.facing, 1);
+  if (f.state === 'ko') ctx.rotate(-1.3);
+  const a = f.atk, prog = a ? a.t / a.dur : 0;
+  // 足
+  const kickOut = a && a.kind === 'kick' && a.t > 6 && a.t < 18;
+  roundRect(-38, -40, 30, 40, 12); ctx.fillStyle = pink; ctx.fill();
+  if (kickOut) { ctx.save(); ctx.translate(15, -50); ctx.rotate(-1.3); roundRect(-15, 0, 30, 70, 14); ctx.fillStyle = pink; ctx.fill(); ctx.restore(); }
+  else { roundRect(8, -40, 30, 40, 12); ctx.fillStyle = pink; ctx.fill(); }
+  // 胴体
+  ctx.translate(0, bob);
+  fur(0, -80, 50, pink);
+  ctx.fillStyle = beige; ctx.beginPath(); ctx.ellipse(5, -75, 30, 36, 0, 0, Math.PI*2); ctx.fill();
+  // 腕
+  const punchOut = a && a.kind === 'punch' && a.t > 3 && a.t < 12;
+  const sp = a && a.kind === 'special';
+  ctx.fillStyle = pink;
+  roundRect(-60, -115, 26, 60, 12); ctx.fill();
+  if (punchOut || sp) { roundRect(30, -118, 70, 26, 13); ctx.fill(); }
+  else if (f.state === 'guard') { roundRect(20, -140, 26, 60, 12); ctx.fill(); }
+  else { roundRect(34, -115, 26, 60, 12); ctx.fill(); }
+  // 杖
+  if (!punchOut && !sp && f.state !== 'guard' && f.state !== 'ko') {
+    ctx.fillStyle = '#9b5b2a'; ctx.fillRect(58, -70, 8, 70 - bob); ctx.fillRect(40, -74, 30, 10);
+  }
+  // 頭
+  const hy = -155;
+  fur(-38, hy - 35, 16, pink); fur(38, hy - 35, 16, pink);
+  fur(-38, hy - 35, 9, beige); fur(38, hy - 35, 9, beige);
+  fur(0, hy, 48, pink);
+  ctx.fillStyle = beige; ctx.beginPath(); ctx.ellipse(8, hy + 14, 30, 24, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = nose; ctx.beginPath(); ctx.ellipse(12, hy + 2, 18, 12, 0, 0, Math.PI*2); ctx.fill();
+  // 目
+  const angry = a || f.state === 'hurt';
+  for (const ex of [-12, 22]) {
+    fur(ex, hy - 18, 7, '#fff'); fur(ex + 1, hy - 18, 4.5, '#6b3a1a'); fur(ex + 1, hy - 18, 2, '#000');
+  }
+  ctx.strokeStyle = dark; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (angry) { ctx.moveTo(-20, hy - 32); ctx.lineTo(-4, hy - 26); ctx.moveTo(14, hy - 26); ctx.lineTo(30, hy - 32); }
+  else { ctx.moveTo(-20, hy - 30); ctx.lineTo(-4, hy - 30); ctx.moveTo(14, hy - 30); ctx.lineTo(30, hy - 30); }
+  ctx.stroke();
+  // 口
+  ctx.fillStyle = '#5e1740'; ctx.beginPath();
+  if (f.state === 'hurt' || f.state === 'ko') ctx.ellipse(10, hy + 26, 8, 6, 0, 0, Math.PI*2);
+  else ctx.arc(10, hy + 20, 12, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.fill();
+  if (f.state === 'win') { ctx.font = '28px sans-serif'; ctx.fillText('🍓', 50, hy - 40); }
+  ctx.restore();
+}
+
+function drawEnemy(f) {
+  const d = f.def, col = f.flash % 2 ? '#fff' : d.color, ac = d.accent;
+  const bob = f.state === 'walk' ? Math.sin(f.t * 0.4) * 4 : Math.sin(f.t * 0.08) * 2;
+  const a = f.atk, punchOut = a && a.kind === 'punch' && a.t > 3 && a.t < 12, kickOut = a && a.kind === 'kick' && a.t > 6 && a.t < 18, sp = a && a.kind === 'special';
+  ctx.save(); ctx.translate(f.x, f.y); ctx.scale(f.facing, 1);
+  if (f.state === 'ko') ctx.rotate(-1.3);
+  ctx.fillStyle = col;
+  if (d.draw === 'robot') {
+    ctx.fillRect(-30, -45, 22, 45); kickOut ? (ctx.save(), ctx.translate(10,-50), ctx.rotate(-1.4), ctx.fillRect(-11,0,22,75), ctx.restore()) : ctx.fillRect(8, -45, 22, 45);
+    ctx.translate(0, bob);
+    ctx.fillRect(-42, -130, 84, 90); ctx.fillStyle = ac; ctx.fillRect(-20, -110, 40, 30);
+    ctx.fillStyle = '#ff0'; for (let i = 0; i < 3; i++) fur(-10 + i * 10, -95, 4, i === (f.t >> 3) % 3 ? '#ff0' : '#553');
+    ctx.fillStyle = col; ctx.fillRect(-55, -125, 16, 60);
+    (punchOut || sp) ? ctx.fillRect(38, -122, 70, 20) : ctx.fillRect(40, -125, 16, 60);
+    ctx.fillRect(-32, -195, 64, 60); ctx.fillStyle = '#ccc'; ctx.fillRect(-2, -215, 4, 20); fur(0, -218, 6, ac);
+    ctx.fillStyle = '#111'; ctx.fillRect(-20, -180, 50, 18); ctx.fillStyle = ac; ctx.fillRect(-10 + (f.t % 30), -176, 10, 10);
+    ctx.fillStyle = '#333'; ctx.fillRect(-18, -155, 40, 6);
+  } else if (d.draw === 'dino') {
+    ctx.fillRect(-30, -45, 24, 45); kickOut ? (ctx.save(), ctx.translate(10,-50), ctx.rotate(-1.4), ctx.fillRect(-12,0,24,75), ctx.restore()) : ctx.fillRect(8, -45, 24, 45);
+    ctx.translate(0, bob);
+    ctx.beginPath(); ctx.moveTo(-40, -70); ctx.lineTo(-100, -40 + Math.sin(f.t*0.1)*8); ctx.lineTo(-40, -100); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -90, 48, 55, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = ac; ctx.beginPath(); ctx.ellipse(8, -85, 26, 38, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = col; (punchOut || sp) ? ctx.fillRect(30, -115, 60, 16) : ctx.fillRect(34, -115, 16, 36);
+    roundRect(-10, -200, 90, 60, 24); ctx.fill();
+    ctx.fillStyle = '#fff'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(35 + i*12, -150); ctx.lineTo(41 + i*12, -140); ctx.lineTo(47 + i*12, -150); ctx.fill(); }
+    fur(35, -180, 9, '#fff'); fur(38, -180, 5, '#000');
+    ctx.fillStyle = ac; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-40 + i*18, -140 + i*-10); ctx.lineTo(-30 + i*18, -165 + i*-10); ctx.lineTo(-20 + i*18, -140 + i*-10); ctx.fill(); }
+    ctx.fillStyle = '#ccc'; ctx.save(); ctx.translate(-48, -95); ctx.rotate(f.t * 0.2); ctx.fillRect(-18, -4, 36, 8); ctx.restore();
+  } else {
+    // びっくり箱ピエロ
+    ctx.fillStyle = '#6a3b1a'; ctx.fillRect(-45, -60, 90, 60); ctx.fillStyle = ac; ctx.fillRect(-45, -60, 90, 8); ctx.fillRect(-45, -8, 90, 8);
+    ctx.translate(0, bob);
+    ctx.strokeStyle = '#bbb'; ctx.lineWidth = 6; ctx.beginPath();
+    for (let i = 0; i < 6; i++) ctx.lineTo((i % 2 ? 15 : -15), -60 - i * 12);
+    ctx.stroke();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, -140, 36, 30, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(-50, -150, 16, 50);
+    (punchOut || sp) ? ctx.fillRect(30, -150, 75, 18) : ctx.fillRect(34, -150, 16, 50);
+    if (kickOut) { fur(95, -60, 18, ac); ctx.fillRect(20, -65, 80, 10); }
+    fur(0, -195, 36, '#f4f0e8');
+    ctx.fillStyle = ac; ctx.beginPath(); ctx.moveTo(-36, -205); ctx.lineTo(-10, -270); ctx.lineTo(10, -225); ctx.lineTo(40, -260); ctx.lineTo(36, -205); ctx.fill();
+    fur(-10, -275, 7, '#ff0'); fur(40, -262, 7, '#ff0');
+    fur(20, -190, 9, '#e22');
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-8, -210); ctx.lineTo(8, -204); ctx.moveTo(22, -204); ctx.lineTo(36, -210); ctx.stroke();
+    ctx.strokeStyle = '#e22'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(14, -185, 16, 0.1*Math.PI, 0.9*Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawStage() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  const skies = [['#7ec8f0','#cdefff'], ['#f7a35c','#ffe2a8'], ['#2b1947','#5b2f6e']];
+  const s = skies[game.stage] || skies[0];
+  g.addColorStop(0, s[0]); g.addColorStop(1, s[1]); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // 子供部屋の壁紙: 雲
+  ctx.fillStyle = game.stage === 2 ? '#ffffff22' : '#ffffffcc';
+  for (let i = 0; i < 5; i++) { const cx = (i * 230 + game.frame * 0.2) % (W + 200) - 100; fur(cx, 80 + (i%2)*40, 30, ctx.fillStyle); fur(cx+30, 70+(i%2)*40, 36, ctx.fillStyle); fur(cx+65, 82+(i%2)*40, 26, ctx.fillStyle); }
+  // 積み木
+  const blocks = ['#e74c3c','#3498db','#f1c40f','#2ecc71'];
+  for (let i = 0; i < 4; i++) { ctx.fillStyle = blocks[i]; ctx.fillRect(40 + i * 46, GROUND - 46 - (i%2)*46, 44, 44); ctx.fillStyle = '#fff'; ctx.font = 'bold 28px sans-serif'; ctx.textAlign = 'left'; ctx.fillText('ABCD'[i], 52 + i*46, GROUND - 14 - (i%2)*46); }
+  ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.arc(W - 110, GROUND - 40, 40, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(W - 150, GROUND - 44, 80, 8);
+  // 床
+  ctx.fillStyle = '#a0673a'; ctx.fillRect(0, GROUND, W, H - GROUND);
+  ctx.strokeStyle = '#7a4a26'; ctx.lineWidth = 2;
+  for (let x = 0; x < W; x += 80) { ctx.beginPath(); ctx.moveTo(x, GROUND); ctx.lineTo(x, H); ctx.stroke(); }
+}
+
+function bar(x, y, w, pct, col, flip) {
+  ctx.fillStyle = '#0008'; ctx.fillRect(x - 3, y - 3, w + 6, 26);
+  ctx.fillStyle = '#b00'; ctx.fillRect(x, y, w, 20);
+  ctx.fillStyle = col; const fw = w * pct; ctx.fillRect(flip ? x + w - fw : x, y, fw, 20);
+}
+
+function drawHUD() {
+  const p = game.p, e = game.e;
+  bar(30, 24, 360, p.hp / p.maxHp, '#ffd23f', false);
+  bar(W - 390, 24, 360, e.hp / e.maxHp, '#ffd23f', true);
+  ctx.font = 'bold 20px sans-serif'; ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left'; ctx.strokeText('ロッツォ', 30, 72); ctx.fillText('ロッツォ', 30, 72);
+  ctx.textAlign = 'right'; ctx.strokeText(e.def.name, W - 30, 72); ctx.fillText(e.def.name, W - 30, 72);
+  ctx.textAlign = 'center'; ctx.font = 'bold 40px sans-serif'; ctx.fillStyle = '#000a'; ctx.fillRect(W/2 - 40, 14, 80, 50);
+  ctx.fillStyle = '#fff'; ctx.fillText(String(Math.max(0, game.timer)).padStart(2, '0'), W/2, 54);
+  for (let i = 0; i < 2; i++) { fur(400 - 18 - i * 22, 82, 7, i < game.wins[0] ? '#ff4d8d' : '#0006'); fur(W - 400 + 18 + i * 22, 82, 7, i < game.wins[1] ? '#ff4d8d' : '#0006'); }
+  // 必殺ゲージ
+  for (const [f, x, flip] of [[p, 30, false], [e, W - 230, true]]) {
+    ctx.fillStyle = '#0008'; ctx.fillRect(x, H - 36, 200, 16);
+    ctx.fillStyle = f.meter >= 100 ? (game.frame % 20 < 10 ? '#ff4d8d' : '#fff') : '#4dc3ff';
+    const fw = 2 * f.meter; ctx.fillRect(flip ? x + 200 - fw : x, H - 36, fw, 16);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = flip ? 'right' : 'left';
+    ctx.fillText(f.meter >= 100 ? 'SPECIAL OK!' : 'SPECIAL', flip ? x + 200 : x, H - 42);
+  }
+}
+
+function bigText(t, y, size, col) {
+  ctx.textAlign = 'center'; ctx.font = `900 ${size}px sans-serif`;
+  ctx.lineWidth = size / 6; ctx.strokeStyle = '#000'; ctx.strokeText(t, W/2, y);
+  ctx.fillStyle = col; ctx.fillText(t, W/2, y);
+}
+
+function drawTitle() {
+  game.stage = 0; drawStage();
+  ctx.fillStyle = '#0006'; ctx.fillRect(0, 0, W, H);
+  bigText('トイストーリー', 150, 72, '#ffd23f');
+  bigText('ファイト', 240, 96, '#ff4d8d');
+  drawLotso({ x:W/2, y:470, facing:1, t:game.frame++, state:'idle', flash:0, atk:null });
+  if (game.frame % 60 < 40) bigText('PRESS ENTER / P', 510, 26, '#fff');
+}
+
+function draw() {
+  ctx.save();
+  if (game.scene === 'title') { drawTitle(); ctx.restore(); return; }
+  if (game.shake) ctx.translate((Math.random()-.5)*game.shake, (Math.random()-.5)*game.shake);
+  drawStage();
+  for (const f of [game.e, game.p].sort(a => a.atk ? 1 : -1)) f.isPlayer ? drawLotso(f) : drawEnemy(f);
+  for (const pr of game.projs) {
+    if (pr.owner.isPlayer) { ctx.font = '48px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🍓', pr.x, pr.y + 16); fur(pr.x - pr.vx*3, pr.y, 10, '#ff4d8d66'); }
+    else { fur(pr.x, pr.y, 22, pr.owner.def.accent); fur(pr.x, pr.y, 12, '#fff'); }
+  }
+  for (const f of game.fx) { ctx.globalAlpha = f.t / 14; ctx.textAlign = 'center'; ctx.font = '900 30px sans-serif'; ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.strokeText(f.txt, f.x, f.y); ctx.fillStyle = f.c; ctx.fillText(f.txt, f.x, f.y); ctx.globalAlpha = 1; }
+  ctx.restore();
+  drawHUD();
+  if (game.msgT > 0) bigText(game.msg, H/2 - 20, 80, '#ffd23f');
+  if (game.scene === 'intro' && game.round === 1) bigText(`STAGE ${game.stage + 1}  VS ${game.e.def.name}`, H/2 + 50, 32, '#fff');
+  const ov = { gameover:['GAME OVER','ロッツォは負けてしまった…'], stageclear:['YOU WIN!',`${game.e.def.name}を倒した！ 次の敵へ`], clear:['ALL CLEAR!','ロッツォがおもちゃ界の王者だ！🍓'] }[game.scene];
+  if (ov) {
+    ctx.fillStyle = '#000a'; ctx.fillRect(0, 0, W, H);
+    bigText(ov[0], H/2 - 30, 80, game.scene === 'gameover' ? '#ff5555' : '#ffd23f');
+    bigText(ov[1], H/2 + 40, 30, '#fff');
+    bigText('PRESS ENTER / P', H/2 + 110, 24, '#fff');
+  }
+}
+
+function loop() {
+  game.update(); draw();
+  for (const k in pressed) pressed[k] = false;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
