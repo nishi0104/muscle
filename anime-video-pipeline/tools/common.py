@@ -31,8 +31,19 @@ def env(name: str, default: str | None = None) -> str | None:
 def require_env(name: str) -> str:
     value = env(name)
     if not value:
-        raise SystemExit(f"環境変数 {name} が未設定です（.env を確認してください）")
+        raise RuntimeError(f"環境変数 {name} が未設定です（.env を確認してください）")
     return value
+
+
+def provider(kind: str, auto_order: list[tuple[str, list[str]]]) -> str:
+    """<KIND>_PROVIDER を返す。auto なら必要なキーが揃っている最初の候補を選ぶ。"""
+    chosen = env(f"{kind}_PROVIDER", "auto")
+    if chosen != "auto":
+        return chosen
+    for name, keys in auto_order:
+        if all(env(k) for k in keys):
+            return name
+    return auto_order[-1][0]
 
 
 def is_mock() -> bool:

@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import FPS, H, W, env, is_mock, load_scenario, log, require_env, run_agent_over_scenes, run_dir, run_ffmpeg, select_scenes  # noqa: E402
+from common import FPS, H, W, env, provider, is_mock, load_scenario, log, require_env, run_agent_over_scenes, run_dir, run_ffmpeg, select_scenes  # noqa: E402
 
 AGENT = "video-generator"
 MOTION_SUFFIX = "smooth subtle camera motion, anime style animation, consistent character"
@@ -84,6 +84,8 @@ def main() -> None:
     rd = run_dir(args.run)
     out_dir = rd / "clips"
     out_dir.mkdir(parents=True, exist_ok=True)
+    backend = provider("VIDEO", [("fal", ["FAL_KEY"]), ("slideshow", [])])
+    log(f"[{AGENT}] provider: {backend}")
 
     def work(scene: dict) -> str | None:
         sid = int(scene["id"])
@@ -91,7 +93,7 @@ def main() -> None:
         if not image.exists():
             raise RuntimeError(f"{image} がありません（image-generator 未完了）")
         out = out_dir / f"scene_{sid:02d}.mp4"
-        if is_mock() or args.fallback_only:
+        if is_mock() or args.fallback_only or backend == "slideshow":
             ken_burns(image, out, float(scene["duration"]))
             return "fallback: slideshow"
         try:

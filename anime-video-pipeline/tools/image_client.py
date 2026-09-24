@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import H, W, env, find_font, is_mock, load_scenario, log, require_env, run_agent_over_scenes, run_dir, select_scenes  # noqa: E402
+from common import H, W, env, provider, find_font, is_mock, load_scenario, log, require_env, run_agent_over_scenes, run_dir, select_scenes  # noqa: E402
 
 AGENT = "image-generator"
 DEFAULT_STYLE = (
@@ -64,6 +64,21 @@ def generate_gemini(prompt: str) -> bytes:
     raise RuntimeError(f"画像が返りませんでした (reason={reason})")
 
 
+def generate_pollinations(prompt: str, seed: int) -> bytes:
+    """無料・API キー不要の画像生成（品質・速度は Gemini より不安定）。"""
+    import urllib.parse
+
+    import requests
+
+    url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt[:1500])
+    params = {"width": W, "height": H, "nologo": "true", "seed": seed,
+              "model": env("POLLINATIONS_MODEL", "flux")}
+    resp = requests.get(url, params=params, timeout=240)
+    if resp.status_code != 200 or not resp.headers.get("content-type", "").startswith("image/"):
+        raise RuntimeError(f"Pollinations {resp.status_code}: {resp.text[:200]}")
+    return resp.content
+
+
 def generate_mock(scene: dict) -> bytes:
     from PIL import Image, ImageDraw, ImageFont
 
@@ -92,6 +107,8 @@ def main() -> None:
     style = scenario.get("style") or DEFAULT_STYLE
     out_dir = run_dir(args.run) / "images"
     out_dir.mkdir(parents=True, exist_ok=True)
+    backend = provider("IMAGE", [("gemini", ["GEMINI_API_KEY"]), ("pollinations", [])])
+    log(f"[{AGENT}] provider: {backend}")
 
     def work(scene: dict) -> str | None:
         out = out_dir / f"scene_{int(scene['id']):02d}.png"
@@ -101,7 +118,11 @@ def main() -> None:
         last: Exception | None = None
         for attempt, prompt in enumerate(prompt_variants(scene, style), 1):
             try:
-                to_vertical(generate_gemini(prompt), out)
+                if backend == "pollinations":
+                    data = generate_pollinations(prompt, seed=1000 + int(scene["id"]) * 7 + attempt)
+                else:
+                    data = generate_gemini(prompt)
+                to_vertical(data, out)
                 return None if attempt == 1 else f"簡略化プロンプト(試行{attempt})で生成"
             except Exception as e:  # noqa: BLE001
                 last = e

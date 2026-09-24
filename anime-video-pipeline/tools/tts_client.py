@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import env, is_mock, load_scenario, log, media_duration, require_env, run_agent_over_scenes, run_dir, run_ffmpeg, select_scenes  # noqa: E402
+from common import env, provider, is_mock, load_scenario, log, media_duration, require_env, run_agent_over_scenes, run_dir, run_ffmpeg, select_scenes  # noqa: E402
 
 AGENT = "audio-generator"
 MARGIN = 0.3  # シーン末尾に残す余白（秒）
@@ -42,6 +42,22 @@ def synthesize(text: str, out: Path, speed: float) -> None:
     out.write_bytes(resp.content)
 
 
+def synthesize_say(text: str, out: Path, speed: float) -> None:
+    """macOS 標準の読み上げ（無料）。声は SAY_VOICE（Kyoko / Otoya など）。"""
+    import subprocess
+
+    if not shutil.which("say"):
+        raise RuntimeError("say コマンドがありません（macOS 専用）。ElevenLabs のキーを設定してください")
+    with tempfile.TemporaryDirectory() as tmp:
+        aiff = Path(tmp) / "voice.aiff"
+        rate = int(float(env("SAY_RATE", "200")) * speed)
+        proc = subprocess.run(["say", "-v", env("SAY_VOICE", "Kyoko"), "-r", str(rate), "-o", str(aiff), text],
+                              capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"say 失敗: {proc.stderr.strip()}（システム設定 > アクセシビリティ > 読み上げコンテンツ で声を追加）")
+        run_ffmpeg(["-i", str(aiff), "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", str(out)])
+
+
 def synthesize_mock(text: str, out: Path, speed: float) -> None:
     seconds = max(1.0, len(text) / 7.5 / speed)
     run_ffmpeg(["-f", "lavfi", "-i", f"sine=frequency=330:duration={seconds:.2f}",
@@ -62,7 +78,9 @@ def main() -> None:
     scenario = load_scenario(args.run)
     out_dir = run_dir(args.run) / "audio"
     out_dir.mkdir(parents=True, exist_ok=True)
-    tts = synthesize_mock if is_mock() else synthesize
+    backend = provider("TTS", [("elevenlabs", ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"]), ("say", [])])
+    tts = synthesize_mock if is_mock() else {"elevenlabs": synthesize, "say": synthesize_say}[backend]
+    log(f"[{AGENT}] provider: {'mock' if is_mock() else backend}")
 
     def work(scene: dict) -> str | None:
         out = out_dir / f"scene_{int(scene['id']):02d}.mp3"

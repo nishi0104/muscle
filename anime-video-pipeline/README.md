@@ -44,6 +44,12 @@ python tools/pipeline.py --run <run_id> [--upload]
 python tools/state.py show <run_id>
 ```
 
+## 無料で動かす
+`.env` にキーを入れなければ、自動で無料の代替を使います（`*_PROVIDER=auto`）。
+- 画像: Pollinations.ai（キー不要。混雑時は遅い・失敗することあり）
+- 動画: 静止画にゆっくりズームをかけるスライドショー（ffmpeg）
+- 音声: macOS の `say`（声は `SAY_VOICE=Kyoko` / `Otoya`）
+
 ## サンプル: 鹿の一人称で歩く森（実写風）
 ```bash
 python tools/pipeline.py --run deer-forest --scenario examples/deer-forest/scenario.json
