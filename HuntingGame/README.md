@@ -4,7 +4,7 @@
 
 ## 動かし方
 
-1. Unreal Engine **5.4** をインストール（5.3〜5.5 でも大きな変更なしで動く想定）
+1. Unreal Engine **5.8** をインストール（Mac は Xcode も必要）
 2. `HuntingGame.uproject` を右クリック → **Generate Visual Studio project files**
 3. `.sln` を開いて `Development Editor` でビルド → エディタが起動
 4. 新規レベルを作成
