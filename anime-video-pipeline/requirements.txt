@@ -1,0 +1,8 @@
+python-dotenv>=1.0
+requests>=2.31
+pillow>=10.0
+imageio-ffmpeg>=0.5        # ffmpeg が PATH に無い場合のフォールバック
+google-genai>=1.30         # Agent2: Gemini 画像生成
+fal-client>=0.5            # Agent3: 動画生成 (Kling 等)
+google-api-python-client>=2.100   # Agent6: YouTube アップロード
+google-auth-oauthlib>=1.2
