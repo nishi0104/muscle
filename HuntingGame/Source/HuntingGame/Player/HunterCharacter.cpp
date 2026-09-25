@@ -330,7 +330,7 @@ void AHunterCharacter::InteractPressed()
 	}
 
 	// 見ている地点の周囲にある痕跡を調べる
-	const FVector LookPoint = bHit ? Hit.ImpactPoint : End;
+	const FVector LookPoint = bHit ? FVector(Hit.ImpactPoint) : End;
 	ATrackSign* Nearest = nullptr;
 	float NearestDist = 150.f;
 	for (TActorIterator<ATrackSign> It(GetWorld()); It; ++It)
