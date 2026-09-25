@@ -654,7 +654,7 @@ void AWildAnimal::ApplyBallisticHit(const FHitResult& Hit, const FVector& Direct
 		return;
 	}
 
-	ThreatLocation = Shooter ? Shooter->GetActorLocation() : Hit.TraceStart;
+	ThreatLocation = Shooter ? Shooter->GetActorLocation() : FVector(Hit.TraceStart);
 
 	const float MinEnergy = Ammo.bIsArrow ? Species->MinArrowEnergyJ : Species->MinBulletEnergyJ;
 	const float Penetration = FMath::Clamp(ImpactEnergyJ / FMath::Max(MinEnergy, 1.f), 0.f, 1.5f);
